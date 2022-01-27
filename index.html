@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Innerspace demoProject</title>
+    <link type="text/css" rel="stylesheet" href="main.css" />
+  </head>
+  <body>
+    <script type="module">
+      import * as THREE from "https://cdn.skypack.dev/three@0.128.0/build/three.module.js";
+      import { OrbitControls } from "https://cdn.skypack.dev/three@0.128.0/examples/jsm/controls/OrbitControls.js";
+      import { GUI } from "https://cdn.skypack.dev/three@0.137.0/examples/jsm/libs/lil-gui.module.min.js";
+      import Stats from "https://cdn.skypack.dev/three@0.137.0/examples/jsm/libs/stats.module.js";
+      import { MeshSurfaceSampler } from "https://cdn.skypack.dev/three@0.128.0/examples/jsm/math/MeshSurfaceSampler.js";
+
+      const gui = new GUI();
+      let camera, scene, renderer, stats;
+
+      const api = {
+        count: 2000,
+        distribution: "random",
+        surfaceColor: 0xfff784,
+        backgroundColor: 0xffffff,
+      };
+
+      init();
+      animate();
+
+      function init() {
+        camera = new THREE.PerspectiveCamera(
+          60,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          100
+        );
+        camera.position.set(25, 25, 25);
+        camera.lookAt(0, 0, 0);
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(api.backgroundColor);
+
+        const pointLight = new THREE.PointLight(0xaa8899, 0.75);
+        pointLight.position.set(50, -25, 75);
+        scene.add(pointLight);
+
+        scene.add(new THREE.HemisphereLight());
+        stats = new Stats();
+        document.body.appendChild(stats.dom);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        window.addEventListener("resize", onWindowResize);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        render();
+        stats.update();
+      }
+
+      function render() {
+        renderer.render(scene, camera);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    </script>
+  </body>
+</html>
