@@ -15,18 +15,59 @@
       import Stats from "https://cdn.skypack.dev/three@0.137.0/examples/jsm/libs/stats.module.js";
       import { MeshSurfaceSampler } from "https://cdn.skypack.dev/three@0.128.0/examples/jsm/math/MeshSurfaceSampler.js";
 
-      const gui = new GUI();
-      let camera, scene, renderer, stats;
+      let camera, scene, renderer, stats, controls;
 
       const api = {
-        count: 2000,
+        count: 15000,
         distribution: "random",
-        surfaceColor: 0xfff784,
-        backgroundColor: 0xffffff,
+        surfaceColor: 0x999999,
+        particleColor: 0x4fcfae,
+        particleSize: 0.5,
+        backgroundColor: 0xdfe9f2,
       };
+
+      // ------------------ Torus --------------------
+
+      const surfaceGeometry = new THREE.TorusKnotGeometry(
+        10,
+        3,
+        100,
+        16
+      ).toNonIndexed();
+      const surfaceMaterial = new THREE.MeshLambertMaterial({
+        color: api.surfaceColor,
+        wireframe: false,
+      });
+      const surface = new THREE.Mesh(surfaceGeometry, surfaceMaterial);
+
+      // ------------------ Particle --------------------
+
+      const particleGeometry = new THREE.SphereGeometry(0.2, 8, 4);
+      const particleMaterial = new THREE.MeshBasicMaterial({
+        color: api.particleColor,
+      });
+      // const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+
+      let particleMesh = new THREE.InstancedMesh(
+        particleGeometry,
+        particleMaterial,
+        api.count
+      );
+      particleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+      // ------------------ Sampler --------------------
+
+      let sampler;
+      const _position = new THREE.Vector3();
+      const _matrix = new THREE.Matrix4();
+      const _scale = new THREE.Vector3();
+      sampler = new MeshSurfaceSampler(surface).setWeightAttribute().build();
+      resample();
 
       init();
       animate();
+
+      // ---------------- Init --------------------------
 
       function init() {
         camera = new THREE.PerspectiveCamera(
@@ -41,21 +82,40 @@
         scene = new THREE.Scene();
         scene.background = new THREE.Color(api.backgroundColor);
 
-        const pointLight = new THREE.PointLight(0xaa8899, 0.75);
+        const pointLight = new THREE.PointLight(0xeeeeee, 0.75);
         pointLight.position.set(50, -25, 75);
         scene.add(pointLight);
 
         scene.add(new THREE.HemisphereLight());
+
         stats = new Stats();
         document.body.appendChild(stats.dom);
 
+        // scene.add(surface);
+        scene.add(particleMesh);
+
+        //---------------- GUI --------------------------
+        const gui = new GUI();
+        gui.add(api, "count", 0, 15000).onChange(function () {
+          particleMesh.count = api.count;
+          resample();
+        });
+        gui.add(api, "particleSize", 0, 1.0).onChange(function () {
+          resample();
+        });
+
+        //---------------- Render --------------------------
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
+        controls = new OrbitControls(camera, renderer.domElement);
+
         window.addEventListener("resize", onWindowResize);
       }
+
+      //---------------- Animate --------------------------
 
       function animate() {
         requestAnimationFrame(animate);
@@ -63,8 +123,21 @@
         stats.update();
       }
 
+      //---------------- Render --------------------------
+
       function render() {
         renderer.render(scene, camera);
+      }
+
+      function resample() {
+        for (let i = 0; i < api.count; i++) {
+          sampler.sample(_position);
+          _matrix.makeTranslation(_position.x, _position.y, _position.z);
+          _scale.set(api.particleSize, api.particleSize, api.particleSize);
+          _matrix.scale(_scale);
+          particleMesh.setMatrixAt(i, _matrix);
+        }
+        particleMesh.instanceMatrix.needsUpdate = true;
       }
 
       function onWindowResize() {
