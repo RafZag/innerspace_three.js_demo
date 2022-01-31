@@ -18,21 +18,24 @@
       let camera, scene, renderer, stats, controls;
 
       const api = {
-        count: 15000,
+        count: 25000,
         distribution: "random",
         surfaceColor: 0x999999,
         particleColor: 0x4fcfae,
-        particleSize: 0.5,
+        particleSize: 0.07,
+        particleRes: 2,
         backgroundColor: 0xdfe9f2,
       };
 
       // ------------------ Torus --------------------
 
       const surfaceGeometry = new THREE.TorusKnotGeometry(
-        10,
+        15,
         3,
         100,
-        16
+        16,
+        3,
+        4
       ).toNonIndexed();
       const surfaceMaterial = new THREE.MeshLambertMaterial({
         color: api.surfaceColor,
@@ -42,18 +45,16 @@
 
       // ------------------ Particle --------------------
 
-      const particleGeometry = new THREE.SphereGeometry(0.2, 8, 4);
+      let particleGeometry;
+
       const particleMaterial = new THREE.MeshBasicMaterial({
         color: api.particleColor,
       });
+
+      // particleMaterial.wireframe = true;
       // const particle = new THREE.Mesh(particleGeometry, particleMaterial);
 
-      let particleMesh = new THREE.InstancedMesh(
-        particleGeometry,
-        particleMaterial,
-        api.count
-      );
-      particleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      let particleMesh = new THREE.Object3D();
 
       // ------------------ Sampler --------------------
 
@@ -62,7 +63,6 @@
       const _matrix = new THREE.Matrix4();
       const _scale = new THREE.Vector3();
       sampler = new MeshSurfaceSampler(surface).setWeightAttribute().build();
-      resample();
 
       init();
       animate();
@@ -76,11 +76,11 @@
           0.1,
           100
         );
-        camera.position.set(25, 25, 25);
+        camera.position.set(15, 15, 15);
         camera.lookAt(0, 0, 0);
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(api.backgroundColor);
+        // scene.background = new THREE.Color(api.backgroundColor);
 
         const pointLight = new THREE.PointLight(0xeeeeee, 0.75);
         pointLight.position.set(50, -25, 75);
@@ -93,19 +93,25 @@
 
         // scene.add(surface);
         scene.add(particleMesh);
+        resample();
 
         //---------------- GUI --------------------------
         const gui = new GUI();
-        gui.add(api, "count", 0, 15000).onChange(function () {
+        gui.add(api, "count", 0, 500000).onChange(function () {
           particleMesh.count = api.count;
           resample();
         });
-        gui.add(api, "particleSize", 0, 1.0).onChange(function () {
+        gui.add(api, "particleSize", 0, 0.2).onChange(function () {
+          resample();
+        });
+        gui.add(api, "particleRes", 0, 5, 1).onChange(function () {
           resample();
         });
 
         //---------------- Render --------------------------
-        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setClearColor(0x000000);
+        renderer.setClearAlpha(0);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
@@ -126,15 +132,33 @@
       //---------------- Render --------------------------
 
       function render() {
+        const time = Date.now() * 0.0003;
+        scene.rotation.x = Math.sin(time / 4);
+        scene.rotation.y = Math.sin(time / 2);
+
         renderer.render(scene, camera);
       }
 
+      /////////////////////////////////////////////////////
+
       function resample() {
+        particleGeometry = new THREE.OctahedronGeometry(
+          api.particleSize,
+          api.particleRes
+        );
+
+        scene.remove(particleMesh);
+        particleMesh = new THREE.InstancedMesh(
+          particleGeometry,
+          particleMaterial,
+          api.count
+        );
+        particleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        scene.add(particleMesh);
+
         for (let i = 0; i < api.count; i++) {
           sampler.sample(_position);
           _matrix.makeTranslation(_position.x, _position.y, _position.z);
-          _scale.set(api.particleSize, api.particleSize, api.particleSize);
-          _matrix.scale(_scale);
           particleMesh.setMatrixAt(i, _matrix);
         }
         particleMesh.instanceMatrix.needsUpdate = true;
