@@ -14,15 +14,22 @@
       import { GUI } from "https://cdn.skypack.dev/three@0.137.0/examples/jsm/libs/lil-gui.module.min.js";
       import Stats from "https://cdn.skypack.dev/three@0.137.0/examples/jsm/libs/stats.module.js";
       import { MeshSurfaceSampler } from "https://cdn.skypack.dev/three@0.128.0/examples/jsm/math/MeshSurfaceSampler.js";
+      import { EffectComposer } from "https://cdn.skypack.dev/three@0.128.0/examples/jsm/postprocessing/EffectComposer.js";
+      import { RenderPass } from "https://cdn.skypack.dev/three@0.128.0/examples/jsm/postprocessing/RenderPass.js";
+      import { BokehPass } from "https://cdn.skypack.dev/three@0.128.0/examples/jsm/postprocessing/BokehPass.js";
+      import { ClearPass } from "https://cdn.skypack.dev/three@0.128.0/examples/jsm/postprocessing/ClearPass.js";
 
-      let camera, scene, renderer, stats, controls;
+      let camera, scene, renderer, stats, controls, clearPass;
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      const postprocessing = {};
 
       const api = {
-        count: 25000,
+        particleCount: 25000,
         distribution: "random",
         surfaceColor: 0x999999,
         particleColor: 0x4fcfae,
-        particleSize: 0.07,
+        particleSize: 0.5,
         particleRes: 2,
         backgroundColor: 0xdfe9f2,
       };
@@ -30,8 +37,8 @@
       // ------------------ Torus --------------------
 
       const surfaceGeometry = new THREE.TorusKnotGeometry(
-        15,
-        3,
+        150,
+        20,
         100,
         16,
         3,
@@ -71,16 +78,15 @@
 
       function init() {
         camera = new THREE.PerspectiveCamera(
-          60,
+          70,
           window.innerWidth / window.innerHeight,
-          0.1,
-          100
+          1,
+          3000
         );
-        camera.position.set(15, 15, 15);
+        camera.position.set(0, 0, 250);
         camera.lookAt(0, 0, 0);
 
         scene = new THREE.Scene();
-        // scene.background = new THREE.Color(api.backgroundColor);
 
         const pointLight = new THREE.PointLight(0xeeeeee, 0.75);
         pointLight.position.set(50, -25, 75);
@@ -95,28 +101,58 @@
         scene.add(particleMesh);
         resample();
 
+        const effectController = {
+          focus: 60.0,
+          aperture: 1.5,
+          maxblur: 0.005,
+        };
+        //---------------- Effect controller --------------------------
+
+        const matChanger = function () {
+          postprocessing.bokeh.uniforms["focus"].value = effectController.focus;
+          postprocessing.bokeh.uniforms["aperture"].value =
+            effectController.aperture * 0.00001;
+          postprocessing.bokeh.uniforms["maxblur"].value =
+            effectController.maxblur;
+        };
+
         //---------------- GUI --------------------------
         const gui = new GUI();
-        gui.add(api, "count", 0, 500000).onChange(function () {
-          particleMesh.count = api.count;
+        const folder1 = gui.addFolder("Particles");
+        folder1.add(api, "particleCount", 0, 500000).onChange(function () {
+          particleMesh.count = api.particleCount;
           resample();
         });
-        gui.add(api, "particleSize", 0, 0.2).onChange(function () {
+        folder1.add(api, "particleSize", 0, 5).onChange(function () {
           resample();
         });
-        gui.add(api, "particleRes", 0, 5, 1).onChange(function () {
+        folder1.add(api, "particleRes", 0, 5, 1).onChange(function () {
           resample();
         });
 
+        const folder2 = gui.addFolder("DoF");
+        folder2
+          .add(effectController, "focus", 10.0, 600.0, 10)
+          .onChange(matChanger);
+        folder2
+          .add(effectController, "aperture", 0, 10, 0.01)
+          .onChange(matChanger);
+        folder2
+          .add(effectController, "maxblur", 0.0, 0.01, 0.001)
+          .onChange(matChanger);
+
         //---------------- Render --------------------------
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setClearColor(0x000000);
-        renderer.setClearAlpha(0);
+        renderer = new THREE.WebGLRenderer();
+        renderer.setClearColor(api.backgroundColor);
+        // renderer.setClearAlpha(0);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
         controls = new OrbitControls(camera, renderer.domElement);
+
+        initPostprocessing();
+        renderer.autoClear = false;
 
         window.addEventListener("resize", onWindowResize);
       }
@@ -135,6 +171,7 @@
         const time = Date.now() * 0.0003;
         scene.rotation.x = Math.sin(time / 4);
         scene.rotation.y = Math.sin(time / 2);
+        postprocessing.composer.render(0.1);
 
         renderer.render(scene, camera);
       }
@@ -142,7 +179,7 @@
       /////////////////////////////////////////////////////
 
       function resample() {
-        particleGeometry = new THREE.OctahedronGeometry(
+        particleGeometry = new THREE.IcosahedronGeometry(
           api.particleSize,
           api.particleRes
         );
@@ -151,23 +188,45 @@
         particleMesh = new THREE.InstancedMesh(
           particleGeometry,
           particleMaterial,
-          api.count
+          api.particleCount
         );
         particleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         scene.add(particleMesh);
 
-        for (let i = 0; i < api.count; i++) {
+        for (let i = 0; i < api.particleCount; i++) {
           sampler.sample(_position);
           _matrix.makeTranslation(_position.x, _position.y, _position.z);
           particleMesh.setMatrixAt(i, _matrix);
         }
         particleMesh.instanceMatrix.needsUpdate = true;
       }
+      //---------------- Init postprocessing --------------------------
+
+      function initPostprocessing() {
+        const renderPass = new RenderPass(scene, camera);
+        const bokehPass = new BokehPass(scene, camera, {
+          focus: 60.0,
+          aperture: 0.000015,
+          maxblur: 0.005,
+          width: width,
+          height: height,
+        });
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderPass);
+        composer.addPass(bokehPass);
+
+        postprocessing.composer = composer;
+        postprocessing.bokeh = bokehPass;
+      }
 
       function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        postprocessing.composer.setSize(width, height);
       }
     </script>
   </body>
