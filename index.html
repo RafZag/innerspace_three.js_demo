@@ -32,6 +32,9 @@
         particleSize: 0.5,
         particleRes: 2,
         backgroundColor: 0xdfe9f2,
+        postProcessing: true,
+        fog: false,
+        fogDensity: 0.003,
       };
 
       // ------------------ Torus --------------------
@@ -91,9 +94,8 @@
         const pointLight = new THREE.PointLight(0xeeeeee, 0.75);
         pointLight.position.set(50, -25, 75);
         scene.add(pointLight);
-
         scene.add(new THREE.HemisphereLight());
-
+        // scene.fog = new THREE.FogExp2(api.backgroundColor, 0.003);
         stats = new Stats();
         document.body.appendChild(stats.dom);
 
@@ -131,6 +133,16 @@
         });
 
         const folder2 = gui.addFolder("DoF");
+
+        folder2.add(api, "postProcessing");
+        folder2.add(api, "fog").onChange(function () {
+          if (!api.fog) scene.fog = null;
+          else
+            scene.fog = new THREE.FogExp2(api.backgroundColor, api.fogDensity);
+        });
+        folder2.add(api, "fogDensity", 0, 0.01, 0.0001).onChange(function () {
+          scene.fog.density = api.fogDensity;
+        });
         folder2
           .add(effectController, "focus", 10.0, 600.0, 10)
           .onChange(matChanger);
@@ -142,7 +154,7 @@
           .onChange(matChanger);
 
         //---------------- Render --------------------------
-        renderer = new THREE.WebGLRenderer();
+        renderer = new THREE.WebGLRenderer({ antyalias: true });
         renderer.setClearColor(api.backgroundColor);
         // renderer.setClearAlpha(0);
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -171,7 +183,13 @@
         const time = Date.now() * 0.0003;
         scene.rotation.x = Math.sin(time / 4);
         scene.rotation.y = Math.sin(time / 2);
-        postprocessing.composer.render(0.1);
+
+        if (api.postProcessing) {
+          postprocessing.composer.render(0.1);
+          scene.background = null;
+        }
+        if (!api.postProcessing)
+          scene.background = new THREE.Color(api.backgroundColor);
 
         renderer.render(scene, camera);
       }
