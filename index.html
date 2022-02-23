@@ -32,21 +32,14 @@
         particleSize: 0.5,
         particleRes: 2,
         backgroundColor: 0xdfe9f2,
-        postProcessing: true,
+        postProcessing: false,
         fog: false,
         fogDensity: 0.003,
       };
 
       // ------------------ Torus --------------------
 
-      const surfaceGeometry = new THREE.TorusKnotGeometry(
-        150,
-        20,
-        100,
-        16,
-        3,
-        4
-      ).toNonIndexed();
+      const surfaceGeometry = new THREE.TorusKnotGeometry(150, 20, 100, 16, 3, 4).toNonIndexed();
       const surfaceMaterial = new THREE.MeshLambertMaterial({
         color: api.surfaceColor,
         wireframe: false,
@@ -57,7 +50,7 @@
 
       let particleGeometry;
 
-      const particleMaterial = new THREE.MeshBasicMaterial({
+      const particleMaterial = new THREE.MeshPhongMaterial({
         color: api.particleColor,
       });
 
@@ -80,21 +73,21 @@
       // ---------------- Init --------------------------
 
       function init() {
-        camera = new THREE.PerspectiveCamera(
-          70,
-          window.innerWidth / window.innerHeight,
-          1,
-          3000
-        );
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 3000);
         camera.position.set(0, 0, 250);
         camera.lookAt(0, 0, 0);
 
         scene = new THREE.Scene();
 
-        const pointLight = new THREE.PointLight(0xeeeeee, 0.75);
-        pointLight.position.set(50, -25, 75);
-        scene.add(pointLight);
-        scene.add(new THREE.HemisphereLight());
+        const light1 = new THREE.DirectionalLight(0xffffff, 0.5);
+        light1.position.set(0, 100, 250);
+        scene.add(light1);
+
+        const light2 = new THREE.DirectionalLight(0xffffff, 0.5);
+        light2.position.set(0, -100, -250);
+        scene.add(light2);
+
+        scene.add(new THREE.AmbientLight(0x999999));
         // scene.fog = new THREE.FogExp2(api.backgroundColor, 0.003);
         stats = new Stats();
         document.body.appendChild(stats.dom);
@@ -112,13 +105,12 @@
 
         const matChanger = function () {
           postprocessing.bokeh.uniforms["focus"].value = effectController.focus;
-          postprocessing.bokeh.uniforms["aperture"].value =
-            effectController.aperture * 0.00001;
-          postprocessing.bokeh.uniforms["maxblur"].value =
-            effectController.maxblur;
+          postprocessing.bokeh.uniforms["aperture"].value = effectController.aperture * 0.00001;
+          postprocessing.bokeh.uniforms["maxblur"].value = effectController.maxblur;
         };
 
         //---------------- GUI --------------------------
+
         const gui = new GUI();
         const folder1 = gui.addFolder("Particles");
         folder1.add(api, "particleCount", 0, 500000).onChange(function () {
@@ -137,21 +129,14 @@
         folder2.add(api, "postProcessing");
         folder2.add(api, "fog").onChange(function () {
           if (!api.fog) scene.fog = null;
-          else
-            scene.fog = new THREE.FogExp2(api.backgroundColor, api.fogDensity);
+          else scene.fog = new THREE.FogExp2(api.backgroundColor, api.fogDensity);
         });
         folder2.add(api, "fogDensity", 0, 0.01, 0.0001).onChange(function () {
           scene.fog.density = api.fogDensity;
         });
-        folder2
-          .add(effectController, "focus", 10.0, 600.0, 10)
-          .onChange(matChanger);
-        folder2
-          .add(effectController, "aperture", 0, 10, 0.01)
-          .onChange(matChanger);
-        folder2
-          .add(effectController, "maxblur", 0.0, 0.01, 0.001)
-          .onChange(matChanger);
+        folder2.add(effectController, "focus", 10.0, 600.0, 10).onChange(matChanger);
+        folder2.add(effectController, "aperture", 0, 10, 0.01).onChange(matChanger);
+        folder2.add(effectController, "maxblur", 0.0, 0.01, 0.001).onChange(matChanger);
 
         //---------------- Render --------------------------
         renderer = new THREE.WebGLRenderer({ antyalias: true });
@@ -188,8 +173,7 @@
           postprocessing.composer.render(0.1);
           scene.background = null;
         }
-        if (!api.postProcessing)
-          scene.background = new THREE.Color(api.backgroundColor);
+        if (!api.postProcessing) scene.background = new THREE.Color(api.backgroundColor);
 
         renderer.render(scene, camera);
       }
@@ -197,17 +181,10 @@
       /////////////////////////////////////////////////////
 
       function resample() {
-        particleGeometry = new THREE.IcosahedronGeometry(
-          api.particleSize,
-          api.particleRes
-        );
+        particleGeometry = new THREE.IcosahedronGeometry(api.particleSize, api.particleRes);
 
         scene.remove(particleMesh);
-        particleMesh = new THREE.InstancedMesh(
-          particleGeometry,
-          particleMaterial,
-          api.particleCount
-        );
+        particleMesh = new THREE.InstancedMesh(particleGeometry, particleMaterial, api.particleCount);
         particleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         scene.add(particleMesh);
 
